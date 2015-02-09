@@ -21,6 +21,7 @@
 
 import mailbox.MailboxService;
 import com.avaje.ebean.Ebean;
+
 import controllers.SvnApp;
 import controllers.UserApp;
 import controllers.routes;
@@ -35,11 +36,11 @@ import play.data.Form;
 import play.mvc.Action;
 import play.mvc.Http;
 import play.mvc.Http.RequestHeader;
-import play.mvc.Result;
 import play.libs.F.Promise;
 
 import play.mvc.Result;
 import play.mvc.Results;
+import sshs.SshDaemon;
 import utils.*;
 import views.html.welcome.restart;
 import views.html.welcome.secret;
@@ -57,7 +58,6 @@ import java.util.Date;
 import static play.data.Form.form;
 import static play.mvc.Results.badRequest;
 
-
 public class Global extends GlobalSettings {
     private static final String[] INITIAL_ENTITY_NAME = {"users", "roles", "siteAdmins"};
     private final String DEFAULT_SECRET = "VA2v:_I=h9>?FYOH:@ZhW]01P<mWZAKlQ>kk>Bo`mdCiA>pDw64FcBuZdDh<47Ew";
@@ -66,6 +66,7 @@ public class Global extends GlobalSettings {
     private boolean isRestartRequired = false;
 
     private MailboxService mailboxService = new MailboxService();
+    private SshDaemon sshdaemon = new SshDaemon();
 
     @Override
     public void onStart(Application app) {
@@ -80,6 +81,7 @@ public class Global extends GlobalSettings {
         Attachment.onStart();
         YobiUpdate.onStart();
         AccessControl.onStart();
+        sshdaemon.start();
         mailboxService.start();
     }
 
@@ -214,6 +216,7 @@ public class Global extends GlobalSettings {
     }
 
     public void onStop(Application app) {
+        sshdaemon.stop();
         mailboxService.stop();
     }
 
