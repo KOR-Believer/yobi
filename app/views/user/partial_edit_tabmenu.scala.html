@@ -40,4 +40,9 @@
     @Messages("userinfo.changeEmails")
     </a>
   </li>
+  <li @if(tabId == "sshs"){ class="active" }>
+    <a href="@routes.UserApp.editUserInfoByTabForm("sshs")">
+    @Messages("userinfo.editSsh")
+    </a>
+  </li>
 </ul>

@@ -19,6 +19,8 @@
 
 package controllers;
 
+import java.util.regex.Pattern;
+
 import com.avaje.ebean.ExpressionList;
 import com.avaje.ebean.annotation.Transactional;
 import controllers.annotation.AnonymousCheck;
@@ -41,6 +43,7 @@ import play.i18n.Messages;
 import play.libs.Json;
 import play.mvc.*;
 import play.mvc.Http.Cookie;
+import sshs.SshKey;
 import utils.*;
 import views.html.user.*;
 
@@ -575,6 +578,8 @@ public class UserApp extends Controller {
                 return ok(edit_notifications.render(userForm, user));
             case EMAILS:
                 return ok(edit_emails.render(userForm, user));
+            case SSHS:
+                return ok(edit_sshs.render(userForm, user));
             default:
             case PROFILE:
                 return ok(edit.render(userForm, user));
@@ -585,7 +590,8 @@ public class UserApp extends Controller {
         PROFILE("profile"),
         PASSWORD("password"),
         NOTIFICATIONS("notifications"),
-        EMAILS("emails");
+        EMAILS("emails"),
+        SSHS("sshs");
 
         private String tabId;
 
@@ -694,6 +700,64 @@ public class UserApp extends Controller {
             throw new IllegalArgumentException("Bad password or passwordSalt!");
         }
         return new Sha256Hash(plainTextPassword, ByteSource.Util.bytes(passwordSalt), HASH_ITERATIONS).toBase64();
+    }
+
+    public static boolean validationSshKey(String key){
+        String[] parts = key.split(" ", 2);
+        String regex = "AAAAB3NzaC1([0-9A-Za-z+/]{191}|[0-9A-Za-z+/]{361}|[0-9A-Za-z+/]{567})+[=]{0,2}";
+        return Pattern.compile(regex).matcher(parts[1]).matches();
+    }
+
+    @Transactional
+    public static Result addSshKey() {
+        Form<SshUser> keyForm = form(SshUser.class).bindFromRequest();
+        String fullKey = keyForm.data().get("sshKey");
+        String keyComment = keyForm.data().get("comment");
+
+        if(keyForm.hasErrors()) {
+            flash(Constants.WARNING, keyForm.error("sshKey").message());
+            return redirect(routes.UserApp.editUserInfoForm());
+        }
+
+        SshKey sshKey = new SshKey(fullKey, keyComment);
+        String sshKeyB64 = sshKey.getPublicKeyB64();
+
+        if (sshKeyB64 != null) {
+            if(validationSshKey(sshKeyB64)){
+                if(SshUser.findByKey(sshKeyB64) != null) {
+                    flash(Constants.WARNING, Messages.get("user.sshKey.duplicate"));
+                    return redirect(routes.UserApp.editUserInfoForm());
+                }
+                SshUser key = new SshUser();
+                key.sshKey = sshKeyB64;
+                key.user = currentUser();
+                key.fingerPrint = sshKey.getFingerprint();
+                key.comment = sshKey.getComment();
+                SshUser.add(key);
+            } else {
+                flash(Constants.WARNING, Messages.get("user.sshKey.unsupported"));
+            }
+        } else {
+            flash(Constants.WARNING, Messages.get("user.sshKey.wrongInput"));
+        }
+        return redirect(routes.UserApp.editUserInfoForm());
+    }
+
+    @Transactional
+    public static Result deleteSshKey(String key) {
+        User currentUser = currentUser();
+        SshUser userKey = SshUser.find.byId(key);
+
+        if(currentUser == null || currentUser.isAnonymous() || userKey == null) {
+            return forbidden(ErrorViews.NotFound.render());
+        }
+
+        if(!AccessControl.isAllowed(currentUser, userKey.user.asResource(), Operation.DELETE)) {
+            return forbidden(ErrorViews.Forbidden.render(Messages.get("error.forbidden")));
+        }
+
+        userKey.delete();
+        return redirect(routes.UserApp.editUserInfoForm());
     }
 
     @Transactional
