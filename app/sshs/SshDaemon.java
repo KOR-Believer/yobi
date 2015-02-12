@@ -27,6 +27,8 @@ import org.apache.sshd.server.keyprovider.PEMGeneratorHostKeyProvider;
 
 import utils.Config;
 import utils.Constants;
+import utils.Diagnostic;
+import utils.SimpleDiagnostic;
 
 public class SshDaemon {
     private static SshServer sshd;
@@ -48,6 +50,19 @@ public class SshDaemon {
             play.Logger.error("SSHD isn't start", e);
             sshd.close(true);
         }
+
+        Diagnostic.register(new SimpleDiagnostic() {
+            @Override
+            public String checkOne() {
+                if (sshd == null) {
+                    return "Ssh Daemon is not initialized";
+                } else if (sshd.isClosed()) {
+                    return "Ssh Daemon is not running";
+                } else {
+                    return null;
+                }
+            }
+        });
     }
 
     public void stop() {
